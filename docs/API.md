@@ -19,13 +19,26 @@ All requests use JSON and the `dropi-integration-key` header. The client also se
 
 ## Catalog
 
-Defaults match the observed active catalog query: `startData: 0`, `pageSize: 20`, `order_type: 'asc'`, `order_by: 'id'`, `keywords: ''`, `active: true`, `no_count: true`, `integration: true`. Supported filters are represented by `ProductListRequest`; callers supply their own query values.
+Defaults match the observed active catalog query: `startData: 0`, `pageSize: 20`, `order_type: 'asc'`, `order_by: 'id'`, `keywords: ''`, `active: true`, `no_count: true`, `integration: true`. Supported filters are represented by `ProductListRequest`; callers supply their own query values. Undefined entries are ignored before defaults are merged, including pagination and market-specific flags. Defined values such as `active: false`, `stockmayor: 0` and `keywords: ''` remain intact.
 
 `Constants.php` lines 39–88 provides the ten market URLs exported in `MARKET_URLS`. The ES request omits `integration`; CO/PY/PE/PA default `get_stock: false`. Other markets have not been live verified. Chile catalog listing, v2 detail and categories passed read-only checks. The legacy product route returned HTTP 400 and remains unqualified. No fallback route is guessed.
 
 The plugin UI's later-page computation skips an offset interval and its total is hardcoded despite `no_count`. The client does not reproduce either behavior. `count` remains raw envelope metadata, not proof of completion.
 
 Provider price strings/nulls, `photos` versus `gallery`, per-warehouse stock and both index/detail attribute forms are preserved. `attribute_name`, nested `attribute.description` and nested `attribute.name` can differ. Detail data is not automatically merged over the index. The client does not strip HTML, choose between sale/suggested prices, fill missing shipping facts or apply application-specific limits.
+
+## Product images
+
+`DropiPhoto.urlS3` and `DropiPhoto.url` are raw provider paths, not guaranteed absolute URLs. The inspected Chile list/detail samples contained relative paths. The client does not resolve or rewrite them.
+
+Dropify 4.7.3 uses this resolution order in [`Product_List.php`](https://plugins.svn.wordpress.org/wc-dropi-integration/tags/4.7.3/clasess/tables/Product_List.php) lines 259–264 and `ProductsModel.php` lines 814–817:
+
+| Field | Base | Selection |
+| --- | --- | --- |
+| `urlS3` | `https://d39ru7awumhhs2.cloudfront.net/` | Preferred when non-empty |
+| `url` | The market origin root, such as `https://api.dropi.cl/` | Fallback when `urlS3` is empty |
+
+[`Constants.php`](https://plugins.svn.wordpress.org/wc-dropi-integration/tags/4.7.3/clasess/Constants.php) lines 39–88 assigns that same CDN base to CL, CO, PA, MX, EC, PE, ES, PY, AR and CR. Each market's `IMG_URL` is its API origin root, obtainable as `new URL(MARKET_URLS[market]).origin + '/'`; it is not the integration base. These mappings come from the referenced plugin version. Relative-path shape was checked live only for Chile; image/CDN downloads and other markets have not been live-qualified.
 
 ## Excluded warehouse directory API
 
@@ -38,6 +51,8 @@ This client therefore excludes warehouse directory access and its standalone rec
 ## Writes
 
 Import marker spellings and `/1` suffix are preserved exactly; the suffix's business meaning is not established. The plugin automatically marks imports after Woo creation; this client exposes a separate explicit method instead.
+
+Abort or timeout before any transport invocation is `not-sent` (`attempts: 0`). Once an invocation starts, an unconfirmed failure is `unknown`. A definitive response is admitted only within the monotonic operation deadline; a late success or refusal becomes `TIMEOUT`/`unknown` for an attempted write.
 
 Both write methods acknowledge success through `isSuccess`. Import-list handling does not read `objects`; order handling reads `objects.id` only conditionally. The client therefore preserves successful acknowledgements without requiring either field. Read endpoints still require their expected result shape.
 

@@ -25,7 +25,7 @@ const order: CreateOrderRequest = {
 expectType<Promise<DropiAcknowledgement<CreatedOrder>>>(client.orders.create(order));
 client.imports.markImported({ products_id: 1, imported_to_store: true, woocomerse_id: 2, woocomerse_url: 'synthetic' });
 const error = new DropiError({ code: 'TIMEOUT', method: 'POST', path: 'orders/myorders', attempts: 1, mutationOutcome: 'unknown' });
-expectType<'not-applicable' | 'unknown' | 'rejected'>(error.mutationOutcome);
+expectType<'not-applicable' | 'not-sent' | 'unknown' | 'rejected'>(error.mutationOutcome);
 
 // These are compilation assertions only; this file is never executed.
 // @ts-expect-error unsupported market

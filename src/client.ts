@@ -62,7 +62,7 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
 
 /**
  * Unofficial Dropi integration client. Reads never mutate the provider's import list.
- * Write methods send exactly one request, including on uncertain failure.
+ * Write methods make at most one transport invocation, including on uncertain failure.
  */
 export class DropiClient {
     readonly market: DropiMarket;
@@ -114,11 +114,12 @@ export class DropiClient {
     }
 
     async #list(request: ProductListRequest, options: RequestOptions): Promise<DropiResponse<DropiProduct[]>> {
+        const defined = Object.fromEntries(Object.entries(request).filter(([, value]) => value !== undefined));
         const body: ProductListRequest = {
             startData: 0, pageSize: 20, order_type: 'asc', order_by: 'id', keywords: '',
             active: true, no_count: true, integration: true,
             ...(['CO', 'PY', 'PE', 'PA'].includes(this.market) ? { get_stock: false } : {}),
-            ...request,
+            ...defined,
         };
         integer(body.startData!, 0, 'startData');
         integer(body.pageSize!, 1, 'pageSize');
@@ -159,21 +160,26 @@ export class DropiClient {
         let encoded: string | undefined;
         try { encoded = body === undefined ? undefined : JSON.stringify(body); }
         catch { throw new TypeError('Request body must be JSON serializable'); }
-        const deadline = Date.now() + this.#timeoutMs;
+        const deadline = performance.now() + this.#timeoutMs;
         const controller = new AbortController();
         const signal = options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal;
         const timer = setTimeout(() => controller.abort(), this.#timeoutMs);
         let attempts = 0;
         const fail = (code: DropiErrorCode, extra: Partial<Pick<DropiErrorDetails, 'status' | 'retryAfterMs'>> = {}) => new DropiError({
-            code, method, path, attempts, mutationOutcome: read ? 'not-applicable' : code === 'API_ERROR' ? 'rejected' : 'unknown', ...extra,
+            code, method, path, attempts, mutationOutcome: read ? 'not-applicable' : attempts === 0 ? 'not-sent' : code === 'API_ERROR' ? 'rejected' : 'unknown', ...extra,
         });
+        // Microtasks and synchronous decoding can postpone the timer callback.
+        const expire = () => {
+            if (performance.now() >= deadline) controller.abort();
+            if (signal.aborted) throw fail(options.signal?.aborted ? 'ABORTED' : 'TIMEOUT');
+        };
         const normalize = (error: unknown) => signal.aborted
             ? fail(options.signal?.aborted ? 'ABORTED' : 'TIMEOUT')
             : error instanceof DropiError ? error : fail('TRANSPORT_ERROR');
         try {
             for (;;) {
                 try {
-                    if (signal.aborted) throw new Error('Operation aborted');
+                    expire();
                     attempts++;
                     const response = await abortable(this.#fetch(MARKET_URLS[this.market] + path, {
                         method, headers: {
@@ -183,23 +189,28 @@ export class DropiClient {
                         },
                         ...(encoded === undefined ? {} : { body: encoded }), redirect: 'error', signal,
                     }), signal);
+                    try { expire(); }
+                    catch (error) { void response.body?.cancel().catch(() => {}); throw error; }
                     if (!response.ok) {
                         const after = retryAfter(response.headers.get('Retry-After'));
                         void response.body?.cancel().catch(() => {});
                         throw fail('HTTP_ERROR', { status: response.status, ...(after === undefined ? {} : { retryAfterMs: after }) });
                     }
                     if (response.redirected) throw fail('PROTOCOL_ERROR');
-                    const decoded = await this.#json(response, signal, fail);
+                    const decoded = await this.#json(response, signal, fail, expire);
+                    expire();
                     if (!object(decoded) || typeof decoded.isSuccess !== 'boolean') throw fail('PROTOCOL_ERROR');
                     if (!decoded.isSuccess) throw fail('API_ERROR');
-                    if (!validate(decoded)) throw fail('PROTOCOL_ERROR');
+                    const valid = validate(decoded);
+                    expire();
+                    if (!valid) throw fail('PROTOCOL_ERROR');
                     return decoded as T;
                 } catch (caught) {
                     const error = normalize(caught);
                     const retryable = error.code === 'TRANSPORT_ERROR' || (error.code === 'HTTP_ERROR' && [429, 502, 503, 504].includes(error.status ?? 0));
                     if (!read || !retryable || attempts > this.#maxRetries) throw error;
                     const wait = error.retryAfterMs ?? this.#retryDelayMs * 2 ** (attempts - 1);
-                    if (!Number.isFinite(wait) || wait >= deadline - Date.now()) throw error;
+                    if (!Number.isFinite(wait) || wait >= deadline - performance.now()) throw error;
                     try { await delay(wait, signal); }
                     catch (aborted) { throw normalize(aborted); }
                 }
@@ -207,7 +218,8 @@ export class DropiClient {
         } finally { clearTimeout(timer); }
     }
 
-    async #json(response: Response, signal: AbortSignal, fail: (code: DropiErrorCode) => DropiError): Promise<unknown> {
+    async #json(response: Response, signal: AbortSignal, fail: (code: DropiErrorCode) => DropiError, expire: () => void): Promise<unknown> {
+        expire();
         const length = response.headers.get('Content-Length');
         if (length !== null && /^\d+$/.test(length) && Number(length) > this.#maxResponseBytes) {
             void response.body?.cancel().catch(() => {});
@@ -220,7 +232,9 @@ export class DropiClient {
         let done = false;
         try {
             for (;;) {
+                expire();
                 const part = await abortable(reader.read(), signal);
+                expire();
                 if (part.done) { done = true; break; }
                 total += part.value.byteLength;
                 if (total > this.#maxResponseBytes) throw fail('RESPONSE_TOO_LARGE');
@@ -230,10 +244,14 @@ export class DropiClient {
             if (!done) void reader.cancel().catch(() => {});
             reader.releaseLock();
         }
+        expire();
         const bytes = new Uint8Array(total);
         let offset = 0;
         for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-        try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown; }
-        catch { throw fail('PROTOCOL_ERROR'); }
+        let decoded: unknown;
+        try { decoded = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown; }
+        catch { expire(); throw fail('PROTOCOL_ERROR'); }
+        expire();
+        return decoded;
     }
 }

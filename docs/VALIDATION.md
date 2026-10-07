@@ -1,6 +1,6 @@
 # Validation
 
-Verified locally on 7 October 2026: all 45 offline tests passed on Node 22.22.0 and Node 24.15.0, with strict compilation/typechecking, example syntax checks, package-content review and zero runtime dependency audit findings. The normal test suite uses synthetic data.
+Verified locally on 7 October 2026: all 52 offline tests passed on Node 22.22.0 and Node 24.15.0, with strict compilation/typechecking, example syntax checks, package-content review and zero runtime dependency audit findings. The normal test suite uses synthetic data.
 
 - Strict TypeScript compilation and typechecking.
 - Operation method/path/header/payload contracts for all six exposed provider operations and all ten market configurations.
@@ -34,3 +34,14 @@ No mutation was sent. Warehouse directory access was removed after confirming th
 Consumer declaration assertions reject both the removed `warehouses.list` method and `DropiWarehouse` export. They failed before removal and passed after it. `DropiWarehouseStock` and product warehouse-stock fields remain typed and preserved.
 
 The final integration-only live smoke passed on 7 October 2026: one catalog row, its v2 detail, 20 categories and zero mutations. Strict compilation, consumer declaration checks, all 45 offline tests and example syntax checks passed after removal on Node 22.22.0 and Node 24.15.0.
+
+## Joint review corrections
+
+An independent Claude CLI review requested and reported `claude-opus-5-5` in `auto` permission mode, with built-in tools and the integration key available through the process environment. Live checks emitted only metadata. The first review found missing image-path documentation, undefined values overriding catalog defaults, and inaccurate pre-send mutation uncertainty. Codex independently reproduced a deadline overrun; a follow-up Opus review confirmed it and an empty-chunk microtask starvation case. Both reviewers agreed on these corrections:
+
+- Document the plugin-derived image bases and field precedence, preserving raw paths without a helper or new export.
+- Ignore undefined catalog properties when merging defaults while retaining defined false, zero and empty-string values and market differences.
+- Report `not-sent` only before any write transport invocation; retain `unknown` after an unconfirmed attempt.
+- Use monotonic deadline checkpoints at dispatch, response, body-read, parsing and admission boundaries. Expired writes remain single-attempt and unknown after dispatch; synchronous work is checked when control returns.
+
+Seven additional offline regressions cover undefined defaults across CL/ES/CO, both pre-aborted writes, late synchronous responses, empty/one-byte microtask streams with reader cancellation, late JSON parsing and wall-clock changes. Six new defect regressions failed before the fix; the wall-clock guard already passed. No source changes for image resolution were made, and image/CDN downloads remain unqualified.

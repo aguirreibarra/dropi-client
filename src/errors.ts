@@ -2,12 +2,14 @@ export type DropiErrorCode =
     | 'HTTP_ERROR' | 'API_ERROR' | 'PROTOCOL_ERROR' | 'TRANSPORT_ERROR'
     | 'TIMEOUT' | 'ABORTED' | 'RESPONSE_TOO_LARGE' | 'PAGINATION_LIMIT';
 
-export type MutationOutcome = 'not-applicable' | 'unknown' | 'rejected';
+/** not-sent proves no transport invocation; unknown follows an unconfirmed attempt. */
+export type MutationOutcome = 'not-applicable' | 'not-sent' | 'unknown' | 'rejected';
 
 export interface DropiErrorDetails {
     code: DropiErrorCode;
     method: string;
     path: string;
+    /** Transport invocations started; does not prove provider receipt. */
     attempts: number;
     mutationOutcome: MutationOutcome;
     status?: number;

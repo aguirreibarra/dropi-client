@@ -45,6 +45,8 @@ for await (const product of client.products.iterate({ pageSize: 20 })) {
 }
 ```
 
+Omitted or explicitly undefined request properties retain the catalog defaults. Defined filters such as `active: false`, `stockmayor: 0` and `keywords: ''` remain unchanged.
+
 `startData` is a zero-based row offset. Iteration advances by the actual number of returned rows, including duplicate IDs. Short pages and `count` do not establish completion; only an admitted empty `objects` array does. Save a checkpoint after processing its entire page. Offset pagination is a point-in-time traversal, not a snapshot-isolation or gap-free freshness guarantee while the provider changes its catalog.
 
 Page iteration halves the page size at the same offset only when the response exceeds the byte limit; malformed JSON is an error. Set `adaptivePageSize: false` to refuse resizing. Duplicate rows and pages are preserved because their contents do not prove whether the provider advanced its offset. `maxPages` defaults to 10,000 page queries and is configurable; oversized attempts count toward this bound, while transport retries remain separately bounded per query. Reaching the bound throws `PAGINATION_LIMIT` and never looks like successful completion. Iteration retains one response page; applications own deduplication and durable receipt/checkpoint storage.
@@ -66,11 +68,15 @@ Every call returns the provider envelope and preserves additional fields. Reads 
 
 Market configurations: CL, CO, PA, MX, EC, PE, ES, PY, AR, CR. Origins and request differences come from the plugin. Chile is the default; market configurations have synthetic contract coverage. Chile catalog listing, v2 product detail and categories passed read-only live checks on 7 October 2026. Warehouse directory access is excluded: the plugin's unused integration route returns HTTP 404, while the dashboard API requires separate login authentication. Product warehouse-stock fields and the `warehouse_id` catalog filter remain raw provider data. The legacy detail endpoint returned HTTP 400 and remains unqualified. Other markets and live mutations remain unverified. See [API evidence](docs/API.md).
 
+## Product images
+
+Photo `urlS3` and `url` values can be relative paths. Dropify 4.7.3 prefers a non-empty `urlS3` and prefixes `https://d39ru7awumhhs2.cloudfront.net/` (the same CDN base in all ten market configurations). Otherwise, `url` is relative to the market origin root; for Chile that is `https://api.dropi.cl/`, not the `/integrations/` directory. The client preserves these fields without resolving them. See [image-path evidence and qualification](docs/API.md#product-images).
+
 ## Failures and write uncertainty
 
 Read operations retry HTTP 429/502/503/504 and transport failures up to `maxRetries` (default 2). Catalog POST is explicitly classified as a read. Retry-After seconds/dates take precedence over exponential backoff; if the requested wait exceeds the remaining deadline, the original HTTP error is returned without retrying early. HTTP 400/401/403, provider refusals and malformed responses do not retry.
 
-Both mutation methods send **one request only**, regardless of retry settings. No idempotency guarantee was found for `shop_order_id`. After timeout, network failure, HTTP failure or an invalid response, `mutationOutcome: 'unknown'` means the provider might have applied the write. Reconcile outside this client before deciding whether to resubmit. An explicit `isSuccess: false` is reported as `'rejected'`. Reading the catalog never marks products imported or creates orders.
+Both mutation methods make **at most one transport invocation**, regardless of retry settings. An abort or timeout before any invocation reports `mutationOutcome: 'not-sent'` with `attempts: 0`. No idempotency guarantee was found for `shop_order_id`. After an invocation, timeout, network failure, HTTP failure or an invalid response reports `'unknown'`: the provider might have applied the write. Reconcile outside this client before deciding whether to resubmit. An explicit `isSuccess: false` admitted within the deadline is reported as `'rejected'`. A response that finishes after the deadline is discarded with `TIMEOUT` and, for an attempted write, `'unknown'`, even if it contains a definitive answer. Reading the catalog never marks products imported or creates orders.
 
 ```ts
 try {
@@ -82,7 +88,7 @@ try {
 }
 ```
 
-The default 30-second deadline covers fetch, response consumption, retries and waits. `timeoutMs`, `maxResponseBytes` (default 32 MiB), `maxRetries` and `retryDelayMs` are configurable. Errors contain safe operation metadata without provider bodies, request payloads, credentials or original exception causes. Native fetch verifies TLS, redirects are refused, and authenticated URLs are limited to the configured known market. Requests identify this SDK with `User-Agent: dropi-client/0.1.0 (WordPress integration protocol)`. Chile's integration gateway rejected the same valid key and catalog request without the `WordPress` marker; this is protocol compatibility, with no WordPress runtime dependency. A custom `fetch` is a trusted injection boundary and must preserve these properties.
+The default 30-second deadline covers fetch, response consumption, retries and waits. A timer bounds asynchronous waits, while monotonic checkpoints reject expired results at dispatch, response, body-chunk, decoding and admission boundaries. Synchronous JavaScript cannot be preempted; its elapsed time is checked when control returns to the client. `timeoutMs`, `maxResponseBytes` (default 32 MiB), `maxRetries` and `retryDelayMs` are configurable. Errors contain safe operation metadata without provider bodies, request payloads, credentials or original exception causes. Native fetch verifies TLS, redirects are refused, and authenticated URLs are limited to the configured known market. Requests identify this SDK with `User-Agent: dropi-client/0.1.0 (WordPress integration protocol)`. Chile's integration gateway rejected the same valid key and catalog request without the `WordPress` marker; this is protocol compatibility, with no WordPress runtime dependency. A custom `fetch` is a trusted injection boundary and must preserve these properties.
 
 ## Verification
 

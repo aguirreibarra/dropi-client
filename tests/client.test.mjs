@@ -313,3 +313,113 @@ test('deadline terminates a noncooperative fetch and never retries an uncertain 
         assert.equal(calls, 1);
     }
 });
+
+
+test('undefined catalog properties retain defaults across markets and defined values remain intact', async () => {
+    for (const market of ['CL', 'ES', 'CO']) {
+        const sent = [];
+        const api = client(async (_url, init) => { sent.push(JSON.parse(init.body)); return json(envelope([])); }, { market });
+        await api.products.list();
+        await api.products.list({ startData: undefined, pageSize: undefined, active: undefined, integration: undefined, no_count: undefined, keywords: undefined, get_stock: undefined });
+        assert.deepEqual(sent[1], sent[0]);
+        await api.products.list({ startData: 0, active: false, integration: false, no_count: false, keywords: '', stockmayor: 0, get_stock: false });
+        assert.equal(sent[2].startData, 0);
+        assert.equal(sent[2].active, false);
+        assert.equal(sent[2].no_count, false);
+        assert.equal(sent[2].keywords, '');
+        assert.equal(sent[2].stockmayor, 0);
+        assert.equal(sent[2].get_stock, false);
+        assert.equal('integration' in sent[2], market !== 'ES');
+        if (market !== 'ES') assert.equal(sent[2].integration, false);
+    }
+});
+
+for (const operation of ['orders', 'imports']) {
+    test(`${operation} reports a pre-aborted write as not-sent without calling fetch`, async () => {
+        let calls = 0;
+        const api = client(async () => { calls++; return json({ isSuccess: true }); });
+        const options = { signal: AbortSignal.abort() };
+        const promise = operation === 'orders' ? api.orders.create({ products: [] }, options) : api.imports.markImported({ products_id: 1 }, options);
+        await assert.rejects(promise, e => e.code === 'ABORTED' && e.attempts === 0 && e.mutationOutcome === 'not-sent');
+        assert.equal(calls, 0);
+    });
+}
+
+function callOperation(api, operation) {
+    return operation === 'read' ? api.products.list() : operation === 'orders' ? api.orders.create({ products: [] }) : api.imports.markImported({ products_id: 1 });
+}
+
+test('deadline rejects synchronous late responses before accepting success, refusal or HTTP status', async context => {
+    let clock = 0;
+    context.mock.method(performance, 'now', () => clock);
+    for (const operation of ['read', 'orders', 'imports']) {
+        for (const reply of ['success', 'refusal', 'http']) {
+            clock = 0;
+            let calls = 0;
+            const api = client(async () => {
+                calls++;
+                clock = 20;
+                return reply === 'http' ? new Response('', { status: 503 }) : json({ isSuccess: reply === 'success', objects: [] });
+            }, { timeoutMs: 10, maxRetries: 3 });
+            await assert.rejects(callOperation(api, operation), e => e.code === 'TIMEOUT' && e.attempts === 1 && e.mutationOutcome === (operation === 'read' ? 'not-applicable' : 'unknown'));
+            assert.equal(calls, 1);
+        }
+    }
+});
+
+test('deadline stops microtask-only empty and one-byte body chunks and cancels the reader', async context => {
+    let clock = 0;
+    context.mock.method(performance, 'now', () => clock);
+    for (const operation of ['read', 'orders', 'imports']) {
+        for (const chunkType of ['empty', 'byte']) {
+            clock = 0;
+            let cancelled = false;
+            let pulls = 0;
+            let calls = 0;
+            const bytes = new TextEncoder().encode(JSON.stringify(envelope([])));
+            const response = new Response(new ReadableStream({
+                pull(controller) {
+                    clock += 4;
+                    pulls++;
+                    if (chunkType === 'empty') {
+                        controller.enqueue(pulls < 5 ? new Uint8Array() : bytes);
+                        if (pulls === 5) controller.close();
+                    } else {
+                        controller.enqueue(bytes.slice(pulls - 1, pulls));
+                        if (pulls === bytes.length) controller.close();
+                    }
+                },
+                cancel() { cancelled = true; },
+            }, { highWaterMark: 0 }));
+            const api = client(async () => { calls++; return response; }, { timeoutMs: 10, maxRetries: 3 });
+            await assert.rejects(callOperation(api, operation), e => e.code === 'TIMEOUT' && e.attempts === 1 && e.mutationOutcome === (operation === 'read' ? 'not-applicable' : 'unknown'));
+            assert.equal(calls, 1);
+            assert.equal(pulls, 3);
+            assert.equal(cancelled, true);
+        }
+    }
+});
+
+test('deadline includes synchronous JSON parsing before admitting a response', async context => {
+    let clock = 0;
+    context.mock.method(performance, 'now', () => clock);
+    const parse = JSON.parse;
+    context.mock.method(JSON, 'parse', (...args) => { const value = parse(...args); clock = 20; return value; });
+    for (const operation of ['read', 'orders', 'imports']) {
+        for (const success of [true, false]) {
+            clock = 0;
+            let calls = 0;
+            const api = client(async () => { calls++; return json({ isSuccess: success, objects: [] }); }, { timeoutMs: 10, maxRetries: 3 });
+            await assert.rejects(callOperation(api, operation), e => e.code === 'TIMEOUT' && e.attempts === 1 && e.mutationOutcome === (operation === 'read' ? 'not-applicable' : 'unknown'));
+            assert.equal(calls, 1);
+        }
+    }
+});
+
+test('operation deadline is independent of a forward wall-clock adjustment', async context => {
+    const originalNow = Date.now;
+    let adjusted = false;
+    context.mock.method(Date, 'now', () => originalNow() + (adjusted ? 3_600_000 : 0));
+    const api = client(async () => { adjusted = true; return json(envelope([])); }, { timeoutMs: 100 });
+    assert.deepEqual((await api.products.list()).objects, []);
+});
