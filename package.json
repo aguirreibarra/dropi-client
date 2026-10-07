@@ -1,0 +1,39 @@
+{
+  "name": "@aguirreibarra/dropi-client",
+  "version": "0.1.0",
+  "description": "Unofficial typed client for the Dropi integrations API",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aguirreibarra/dropi-client.git"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && npm run test:types && node --test tests/*.test.mjs",
+    "check": "npm run typecheck && npm test && node --check examples/catalog.mjs && node --check scripts/smoke.mjs",
+    "smoke": "npm run build && node scripts/smoke.mjs",
+    "prepack": "npm run check",
+    "test:types": "tsc -p tsconfig.type-tests.json"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}
