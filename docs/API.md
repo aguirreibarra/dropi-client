@@ -12,7 +12,6 @@ Source links below identify the versioned [upstream SVN source](https://plugins.
 | Product v2 GET | Same file, lines 43–85 | Singular `objects` product |
 | Legacy product GET | [`Dropi.php`](https://plugins.svn.wordpress.org/wc-dropi-integration/tags/4.7.3/clasess/Dropi.php), lines 199–235 | Disabled stock-refresh path; explicit method GET despite WordPress helper name |
 | Categories GET | `ProductsModel.php`, lines 935–975 | `objects` array |
-| Warehouses GET | Same file, lines 883–929 | `objects` array |
 | Import marker PUT | Same file, lines 749–803 | `products_id`, `imported_to_store`, `woocomerse_id`, `woocomerse_url`; last method declaration is PUT |
 | Order POST | [`OrdersModel.php`](https://plugins.svn.wordpress.org/wc-dropi-integration/tags/4.7.3/clasess/models/OrdersModel.php), lines 245–394 | Success acknowledgement with optional `objects.id`; real order creation; no proven idempotency |
 
@@ -22,11 +21,19 @@ All requests use JSON and the `dropi-integration-key` header. The client also se
 
 Defaults match the observed active catalog query: `startData: 0`, `pageSize: 20`, `order_type: 'asc'`, `order_by: 'id'`, `keywords: ''`, `active: true`, `no_count: true`, `integration: true`. Supported filters are represented by `ProductListRequest`; callers supply their own query values.
 
-`Constants.php` lines 39–88 provides the ten market URLs exported in `MARKET_URLS`. The ES request omits `integration`; CO/PY/PE/PA default `get_stock: false`. Other markets have not been live verified. Chile catalog listing, v2 detail and categories passed read-only checks. The referenced `warehouses/` route returned HTTP 404, and the legacy product route returned HTTP 400; neither is live-qualified. No fallback route is guessed.
+`Constants.php` lines 39–88 provides the ten market URLs exported in `MARKET_URLS`. The ES request omits `integration`; CO/PY/PE/PA default `get_stock: false`. Other markets have not been live verified. Chile catalog listing, v2 detail and categories passed read-only checks. The legacy product route returned HTTP 400 and remains unqualified. No fallback route is guessed.
 
 The plugin UI's later-page computation skips an offset interval and its total is hardcoded despite `no_count`. The client does not reproduce either behavior. `count` remains raw envelope metadata, not proof of completion.
 
 Provider price strings/nulls, `photos` versus `gallery`, per-warehouse stock and both index/detail attribute forms are preserved. `attribute_name`, nested `attribute.description` and nested `attribute.name` can differ. Detail data is not automatically merged over the index. The client does not strip HTML, choose between sale/suggested prices, fill missing shipping facts or apply application-specific limits.
+
+## Excluded warehouse directory API
+
+The plugin retains a `getWarehouse()` function in `ProductsModel.php` lines 883–929, but its only call is commented out in [`Product_List.php`](https://plugins.svn.wordpress.org/wc-dropi-integration/tags/4.7.3/clasess/tables/Product_List.php) line 581. That unused function was incorrectly treated as a supported integration operation. Both forms of the integration route, with and without its trailing slash, returned HTTP 404; a WordPress-style User-Agent did not change the result.
+
+The current [warehouse service](https://app.dropi.cl/chunk-DGPGYJIB.js) and [API transport](https://app.dropi.cl/chunk-XEINS7OM.js), together with the [settings](https://app.dropi.cl/chunk-3YKU4NQN.js) and [Chile environment](https://app.dropi.cl/chunk-ZSA5DZUN.js), identify a separate dashboard route: `GET https://api.dropi.cl/api/warehouses/`, authenticated with a dashboard login token in `X-Authorization: Bearer`. The configured integration key returned HTTP 401 there with both the integration header and the dashboard header. These observations were verified on 7 October 2026.
+
+This client therefore excludes warehouse directory access and its standalone record type. It does not retrieve dashboard sessions or reuse integration credentials across that authentication boundary. Existing product `warehouse_product` and variation `warehouse_product_variation` stock fields, `DropiWarehouseStock`, and the `warehouse_id` catalog filter remain part of the integration contract.
 
 ## Writes
 

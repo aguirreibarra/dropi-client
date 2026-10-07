@@ -73,13 +73,6 @@ export interface DropiCategory {
     [field: string]: unknown;
 }
 
-export interface DropiWarehouse {
-    id?: DropiId;
-    name?: string | null;
-    store_name?: string | null;
-    [field: string]: unknown;
-}
-
 /** Optional fields reflect incomplete and differing index/detail responses. */
 export interface DropiProduct {
     id: DropiId;

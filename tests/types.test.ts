@@ -1,6 +1,6 @@
 import {
     DropiClient, DropiError, type CreateOrderRequest, type CreatedOrder, type DropiAcknowledgement, type DropiPrice,
-    type DropiProduct, type DropiResponse, type ProductPage,
+    type DropiProduct, type DropiResponse, type DropiWarehouseStock, type ProductPage,
 } from '../dist/index.js';
 
 function expectType<T>(_value: T): void {}
@@ -12,6 +12,7 @@ expectType<AsyncGenerator<ProductPage>>(client.products.pages({ startData: 20 })
 expectType<AsyncGenerator<DropiProduct>>(client.products.iterate());
 const product: DropiProduct = { id: 1, sale_price: '2500', suggested_price: null };
 expectType<DropiPrice | undefined>(product.sale_price);
+expectType<DropiWarehouseStock[] | null | undefined>(product.warehouse_product);
 
 const order: CreateOrderRequest = {
     total_order: 2500, notes: '', name: 'Synthetic', surname: 'Customer',
@@ -37,3 +38,8 @@ client.orders.create({ products: [] });
 client.products.list({ page: 2 });
 // @ts-expect-error import marker preserves the actual provider wire spelling
 client.imports.markImported({ products_id: 1, imported_to_store: true, woocomerse_id: 2, woocomerse_url: 'synthetic', product_id: 1 });
+
+// @ts-expect-error warehouse directory access is not an integration API operation
+client.warehouses.list();
+// @ts-expect-error warehouse directory records are not an integration API export
+expectType<import('../dist/index.js').DropiWarehouse>({});

@@ -1,9 +1,9 @@
 # Validation
 
-Verified locally on 6 October 2026: all 45 offline tests passed on Node 22.22.0 and Node 24.15.0, with strict compilation/typechecking, example syntax checks, package-content review and zero runtime dependency audit findings. The normal test suite uses synthetic data.
+Verified locally on 7 October 2026: all 45 offline tests passed on Node 22.22.0 and Node 24.15.0, with strict compilation/typechecking, example syntax checks, package-content review and zero runtime dependency audit findings. The normal test suite uses synthetic data.
 
 - Strict TypeScript compilation and typechecking.
-- Operation method/path/header/payload contracts for all seven observed provider operations and all ten market configurations.
+- Operation method/path/header/payload contracts for all six exposed provider operations and all ten market configurations.
 - Raw pricing, paragraph/HTML, nullable fields and variant-schema preservation.
 - Offset pagination through short pages, duplicate IDs/payloads, actual empty completion, adaptive oversized pages and explicit page-query bounds.
 - HTTP/provider/protocol errors, Retry-After, transport retry, response byte bounds, UTF-8, cancellation and full-response deadlines.
@@ -26,7 +26,11 @@ Read-only verification with the corrected client on 7 October 2026:
 | Catalog listing, one requested row | Passed; one row |
 | v2 detail of that catalog row | Passed; one product |
 | Categories | Passed; 20 rows |
-| Warehouses, plugin-referenced route | HTTP 404; not live-qualified |
+| Warehouses, unused plugin route | HTTP 404; excluded from the client |
 | Legacy detail of that catalog row | HTTP 400; not live-qualified |
 
-No mutation was sent. The combined smoke test still fails on the warehouse read; this is a separate provider response after successful catalog, detail and category reads. No complete-market or fulfillment qualification is claimed. A regression assertion for the User-Agent failed before the fix and passed afterward. Strict compilation, consumer typechecks, all 45 offline tests and example syntax checks passed after the fix on Node 22.22.0 and Node 24.15.0.
+No mutation was sent. Warehouse directory access was removed after confirming that the plugin's only caller is commented out and its integration route is unavailable. The current dashboard route refused the integration key with HTTP 401 and requires separate login authentication; it is outside this client's scope. The smoke test now checks only catalog, v2 detail and categories; a failure of any of those reads still fails the check. No complete-market or fulfillment qualification is claimed. A regression assertion for the User-Agent failed before the fix and passed afterward. Strict compilation, consumer typechecks, all 45 offline tests and example syntax checks passed after the fix on Node 22.22.0 and Node 24.15.0.
+
+Consumer declaration assertions reject both the removed `warehouses.list` method and `DropiWarehouse` export. They failed before removal and passed after it. `DropiWarehouseStock` and product warehouse-stock fields remain typed and preserved.
+
+The final integration-only live smoke passed on 7 October 2026: one catalog row, its v2 detail, 20 categories and zero mutations. Strict compilation, consumer declaration checks, all 45 offline tests and example syntax checks passed after removal on Node 22.22.0 and Node 24.15.0.

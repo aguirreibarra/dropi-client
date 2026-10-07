@@ -2,7 +2,7 @@ import { DropiError, type DropiErrorCode, type DropiErrorDetails } from './error
 import {
     MARKET_URLS, type CreateOrderRequest, type CreatedOrder, type DropiAcknowledgement, type DropiCategory,
     type DropiClientOptions, type DropiId, type DropiMarket, type DropiProduct,
-    type DropiResponse, type DropiWarehouse, type ImportMarkerRequest,
+    type DropiResponse, type ImportMarkerRequest,
     type ProductIterationRequest, type ProductListRequest, type ProductPage, type RequestOptions,
 } from './types.js';
 
@@ -74,7 +74,6 @@ export class DropiClient {
         iterate: (request?: ProductIterationRequest, options?: RequestOptions) => AsyncGenerator<DropiProduct>;
     };
     readonly categories: { list: (options?: RequestOptions) => Promise<DropiResponse<DropiCategory[]>> };
-    readonly warehouses: { list: (options?: RequestOptions) => Promise<DropiResponse<DropiWarehouse[]>> };
     readonly imports: { markImported: (request: ImportMarkerRequest, options?: RequestOptions) => Promise<DropiAcknowledgement> };
     readonly orders: { create: (request: CreateOrderRequest, options?: RequestOptions) => Promise<DropiAcknowledgement<CreatedOrder>> };
 
@@ -106,7 +105,6 @@ export class DropiClient {
         });
         const collection = (path: string, opts: RequestOptions) => this.#request<DropiResponse<Record<string, unknown>[]>>('GET', path, undefined, withObjects(value => Array.isArray(value) && value.every(object)), true, opts);
         this.categories = Object.freeze({ list: (opts: RequestOptions = {}) => collection('categories/', opts) });
-        this.warehouses = Object.freeze({ list: (opts: RequestOptions = {}) => collection('warehouses/', opts) });
         this.imports = Object.freeze({
             markImported: (request: ImportMarkerRequest, opts: RequestOptions = {}) => this.#request<DropiAcknowledgement>('PUT', 'importlist/importstore/1', request, () => true, false, opts),
         });

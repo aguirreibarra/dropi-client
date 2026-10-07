@@ -39,7 +39,7 @@ test('all plugin-derived markets and their catalog differences are explicit', as
     }
 });
 
-test('detail, legacy stock, categories and warehouses use their exact read paths', async () => {
+test('detail, legacy stock and categories use their exact read paths', async () => {
     const calls = [];
     const api = client(async (url, init) => {
         calls.push([url, init.method, init.body]);
@@ -48,10 +48,9 @@ test('detail, legacy stock, categories and warehouses use their exact read paths
     assert.equal((await api.products.get(1)).objects.id, 1);
     assert.equal((await api.products.getLegacy(1)).objects.id, 1);
     await api.categories.list();
-    await api.warehouses.list();
     assert.deepEqual(calls.map(([url, method, body]) => [url.replace(MARKET_URLS.CL, ''), method, body]), [
         ['products/v2/1', 'GET', undefined], ['products/1', 'GET', undefined],
-        ['categories/', 'GET', undefined], ['warehouses/', 'GET', undefined],
+        ['categories/', 'GET', undefined],
     ]);
 });
 

@@ -59,13 +59,12 @@ Page iteration halves the page size at the same offset only when the response ex
 | `products.pages(request?, options?)` | Repeated catalog reads | Async pages/checkpoints |
 | `products.iterate(request?, options?)` | Repeated catalog reads | Async products |
 | `categories.list(options?)` | GET `categories/` | Read |
-| `warehouses.list(options?)` | GET `warehouses/` | Read |
 | `imports.markImported(request, options?)` | PUT `importlist/importstore/1` | Explicit remote mutation |
 | `orders.create(request, options?)` | POST `orders/myorders` | Explicit real order creation |
 
 Every call returns the provider envelope and preserves additional fields. Reads require the expected `objects` shape and product identity. Write acknowledgements may omit `objects` or an order ID; callers must check `response.objects?.id` before using a returned order identity. Models describe observed fields rather than a provider-issued complete schema, and admission does not claim full nested schema validation. Nulls, unknown fields, HTML, paragraph breaks, variant labels, stock and raw price representations remain intact. `sale_price` and `suggested_price` are separate; the client never selects retail prices, invents weights, rounds money or drops variants.
 
-Market configurations: CL, CO, PA, MX, EC, PE, ES, PY, AR, CR. Origins and request differences come from the plugin. Chile is the default; market configurations have synthetic contract coverage. Chile catalog listing, v2 product detail and categories passed read-only live checks on 7 October 2026. The referenced warehouse endpoint returned HTTP 404 and the legacy detail endpoint returned HTTP 400; these operations are not live-qualified. Other markets and live mutations remain unverified. See [API evidence](docs/API.md).
+Market configurations: CL, CO, PA, MX, EC, PE, ES, PY, AR, CR. Origins and request differences come from the plugin. Chile is the default; market configurations have synthetic contract coverage. Chile catalog listing, v2 product detail and categories passed read-only live checks on 7 October 2026. Warehouse directory access is excluded: the plugin's unused integration route returns HTTP 404, while the dashboard API requires separate login authentication. Product warehouse-stock fields and the `warehouse_id` catalog filter remain raw provider data. The legacy detail endpoint returned HTTP 400 and remains unqualified. Other markets and live mutations remain unverified. See [API evidence](docs/API.md).
 
 ## Failures and write uncertainty
 
@@ -89,7 +88,7 @@ The default 30-second deadline covers fetch, response consumption, retries and w
 
 `npm run check` builds, typechecks and runs offline tests plus example syntax checks. Tests use synthetic data, including actual local HTTP transport checks. CI runs Node 22 and 24; it has no Dropi secret and makes no provider calls.
 
-An explicitly enabled smoke test reads one Chile catalog page, one detail if available, categories and warehouses, and prints only status/count metadata:
+An explicitly enabled smoke test reads one Chile catalog page, one detail if available, and categories, and prints only status/count metadata:
 
 ```sh
 DROPI_LIVE_SMOKE=1 npm run smoke
