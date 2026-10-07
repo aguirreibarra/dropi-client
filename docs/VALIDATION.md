@@ -15,6 +15,18 @@ Live verification is opt-in, uses `DROPI_API_KEY` only in the request header and
 
 Unverified: all non-Chile live markets, live mutations, fulfillment, stock/order reconciliation, cancellation, tracking and shipping quotes. No npm publication or public repository release is part of this work.
 
-## Live read attempt
+## Live read checks
 
-The Chile catalog probe (`POST products/index`) returned HTTP 401 with the configured credential on 6 October 2026. No retry or mutation was performed. The probe stopped before detail, categories and warehouses; their live behavior remains unverified for this client. No successful live market qualification is claimed. Re-run the opt-in smoke test with a provider-accepted credential before relying on live integration.
+The initial Chile catalog probe returned HTTP 401 on 6 October 2026. Controlled comparisons on 7 October confirmed that the key was valid: WordPress succeeded, and changing only the Node request's User-Agent to include the WordPress protocol marker changed HTTP 401 to HTTP 200. Removing that marker again reproduced HTTP 401. The client now sends its own name and version with this compatibility marker; it has no WordPress runtime dependency.
+
+Read-only verification with the corrected client on 7 October 2026:
+
+| Operation | Result |
+| --- | --- |
+| Catalog listing, one requested row | Passed; one row |
+| v2 detail of that catalog row | Passed; one product |
+| Categories | Passed; 20 rows |
+| Warehouses, plugin-referenced route | HTTP 404; not live-qualified |
+| Legacy detail of that catalog row | HTTP 400; not live-qualified |
+
+No mutation was sent. The combined smoke test still fails on the warehouse read; this is a separate provider response after successful catalog, detail and category reads. No complete-market or fulfillment qualification is claimed. A regression assertion for the User-Agent failed before the fix and passed afterward. Strict compilation, consumer typechecks, all 45 offline tests and example syntax checks passed after the fix on Node 22.22.0 and Node 24.15.0.

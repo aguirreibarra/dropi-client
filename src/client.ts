@@ -178,7 +178,11 @@ export class DropiClient {
                     if (signal.aborted) throw new Error('Operation aborted');
                     attempts++;
                     const response = await abortable(this.#fetch(MARKET_URLS[this.market] + path, {
-                        method, headers: { 'Content-Type': 'application/json;charset=UTF-8', 'dropi-integration-key': this.#apiKey },
+                        method, headers: {
+                            'Content-Type': 'application/json;charset=UTF-8', 'dropi-integration-key': this.#apiKey,
+                            // Chile integration requests require this marker; no WordPress runtime is needed.
+                            'User-Agent': 'dropi-client/0.1.0 (WordPress integration protocol)',
+                        },
                         ...(encoded === undefined ? {} : { body: encoded }), redirect: 'error', signal,
                     }), signal);
                     if (!response.ok) {

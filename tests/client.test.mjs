@@ -20,6 +20,7 @@ test('catalog uses the integration header and preserves both raw prices and desc
     assert.equal(sent.url, 'https://api.dropi.cl/integrations/products/index');
     assert.equal(sent.init.method, 'POST');
     assert.equal(new Headers(sent.init.headers).get('dropi-integration-key'), key);
+    assert.equal(new Headers(sent.init.headers).get('user-agent'), 'dropi-client/0.1.0 (WordPress integration protocol)');
     assert.equal(sent.init.redirect, 'error');
     assert.deepEqual(JSON.parse(sent.init.body), {
         startData: 4, pageSize: 2, order_type: 'asc', order_by: 'id', keywords: '',

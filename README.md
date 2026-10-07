@@ -65,7 +65,7 @@ Page iteration halves the page size at the same offset only when the response ex
 
 Every call returns the provider envelope and preserves additional fields. Reads require the expected `objects` shape and product identity. Write acknowledgements may omit `objects` or an order ID; callers must check `response.objects?.id` before using a returned order identity. Models describe observed fields rather than a provider-issued complete schema, and admission does not claim full nested schema validation. Nulls, unknown fields, HTML, paragraph breaks, variant labels, stock and raw price representations remain intact. `sale_price` and `suggested_price` are separate; the client never selects retail prices, invents weights, rounds money or drops variants.
 
-Market configurations: CL, CO, PA, MX, EC, PE, ES, PY, AR, CR. Origins and request differences come from the plugin. Chile is the default; market configurations have synthetic contract coverage. The current Chile live probe returned HTTP 401, so no market is live-qualified by this implementation yet. See [API evidence](docs/API.md).
+Market configurations: CL, CO, PA, MX, EC, PE, ES, PY, AR, CR. Origins and request differences come from the plugin. Chile is the default; market configurations have synthetic contract coverage. Chile catalog listing, v2 product detail and categories passed read-only live checks on 7 October 2026. The referenced warehouse endpoint returned HTTP 404 and the legacy detail endpoint returned HTTP 400; these operations are not live-qualified. Other markets and live mutations remain unverified. See [API evidence](docs/API.md).
 
 ## Failures and write uncertainty
 
@@ -83,7 +83,7 @@ try {
 }
 ```
 
-The default 30-second deadline covers fetch, response consumption, retries and waits. `timeoutMs`, `maxResponseBytes` (default 32 MiB), `maxRetries` and `retryDelayMs` are configurable. Errors contain safe operation metadata without provider bodies, request payloads, credentials or original exception causes. Native fetch verifies TLS, redirects are refused, and authenticated URLs are limited to the configured known market. A custom `fetch` is a trusted injection boundary and must preserve these properties.
+The default 30-second deadline covers fetch, response consumption, retries and waits. `timeoutMs`, `maxResponseBytes` (default 32 MiB), `maxRetries` and `retryDelayMs` are configurable. Errors contain safe operation metadata without provider bodies, request payloads, credentials or original exception causes. Native fetch verifies TLS, redirects are refused, and authenticated URLs are limited to the configured known market. Requests identify this SDK with `User-Agent: dropi-client/0.1.0 (WordPress integration protocol)`. Chile's integration gateway rejected the same valid key and catalog request without the `WordPress` marker; this is protocol compatibility, with no WordPress runtime dependency. A custom `fetch` is a trusted injection boundary and must preserve these properties.
 
 ## Verification
 

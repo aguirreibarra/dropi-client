@@ -16,13 +16,13 @@ Source links below identify the versioned [upstream SVN source](https://plugins.
 | Import marker PUT | Same file, lines 749–803 | `products_id`, `imported_to_store`, `woocomerse_id`, `woocomerse_url`; last method declaration is PUT |
 | Order POST | [`OrdersModel.php`](https://plugins.svn.wordpress.org/wc-dropi-integration/tags/4.7.3/clasess/models/OrdersModel.php), lines 245–394 | Success acknowledgement with optional `objects.id`; real order creation; no proven idempotency |
 
-All requests use JSON and the `dropi-integration-key` header. Never copy the plugin's disabled TLS verification, raw-body logging or long timeout defaults.
+All requests use JSON and the `dropi-integration-key` header. The client also sends `User-Agent: dropi-client/0.1.0 (WordPress integration protocol)`. In controlled Chile catalog checks on 7 October 2026, the same valid key, URL and JSON payload returned HTTP 401 without the `WordPress` marker and HTTP 200 with it, both through Node fetch. WordPress supplies that marker in its default User-Agent. The SDK identifies itself and its compatibility protocol; it does not require or claim a WordPress runtime. This behavior is observed for Chile, not established for every market. Never copy the plugin's disabled TLS verification, raw-body logging or long timeout defaults.
 
 ## Catalog
 
 Defaults match the observed active catalog query: `startData: 0`, `pageSize: 20`, `order_type: 'asc'`, `order_by: 'id'`, `keywords: ''`, `active: true`, `no_count: true`, `integration: true`. Supported filters are represented by `ProductListRequest`; callers supply their own query values.
 
-`Constants.php` lines 39–88 provides the ten market URLs exported in `MARKET_URLS`. The ES request omits `integration`; CO/PY/PE/PA default `get_stock: false`. Other markets have not been live verified.
+`Constants.php` lines 39–88 provides the ten market URLs exported in `MARKET_URLS`. The ES request omits `integration`; CO/PY/PE/PA default `get_stock: false`. Other markets have not been live verified. Chile catalog listing, v2 detail and categories passed read-only checks. The referenced `warehouses/` route returned HTTP 404, and the legacy product route returned HTTP 400; neither is live-qualified. No fallback route is guessed.
 
 The plugin UI's later-page computation skips an offset interval and its total is hardcoded despite `no_count`. The client does not reproduce either behavior. `count` remains raw envelope metadata, not proof of completion.
 
